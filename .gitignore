@@ -1,0 +1,21 @@
+.venv/
+.uv-cache/
+.uv-python/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+.env
+artifacts/
+cache/
+dataset/*
+!dataset/.gitkeep
+result/*
+!result/.gitkeep
+*.pt
+*.safetensors
+
+# project files
+dataset/*.json
+result/*
+artifacts/*

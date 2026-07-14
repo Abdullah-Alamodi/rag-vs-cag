@@ -1,0 +1,26 @@
+[project]
+name = "rag-vs-cag"
+version = "0.1.0"
+description = "Simple RAG vs CAG experiments for Arabic ACQAD multi-hop QA"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate>=1.14.0",
+    "bert-score>=0.3.13",
+    "huggingface-hub>=1.23.0",
+    "ipykernel>=7.3.0",
+    "jupyter>=1.1.1",
+    "kagglehub>=1.0.2",
+    "llama-index-core>=0.14.16",
+    "llama-index-embeddings-huggingface>=0.7.0",
+    "matplotlib>=3.11.0",
+    "numpy>=2.5.1",
+    "pandas>=3.0.3",
+    "sentence-transformers>=5.6.0",
+    "torch==2.9.0",
+    "tqdm>=4.68.4",
+    "transformers>=5.13.0",
+]
+
+[tool.uv]
+package = false
