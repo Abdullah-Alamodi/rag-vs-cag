@@ -17,7 +17,7 @@ from utils import (
     build_qa_messages,
     generation_eos_ids,
     load_generator,
-    load_split,
+    load_subset,
     normalize_rows,
     parse_generated_answer,
     render_generation_prompt,
@@ -288,25 +288,30 @@ class CacheAugmentedGenerator:
 
 
 def run_cag(
-    split: str,
+    subset: str,
     limit: int | None = None,
     config: Config = CONFIG,
     save_cache: bool = True,
     prompt_logs: list[dict[str, str]] | None = None,
 ):
-    all_records = load_split(split)
+    all_records = load_subset(subset)
     records = all_records if limit is None else all_records[:limit]
     passages = unique_passages(all_records)
 
     cag = CacheAugmentedGenerator(config)
     cag.prepare_cache(passages)
     if save_cache:
-        cag.save_cache(ARTIFACTS_DIR / "cag_cache" / f"{split}.pt")
+        cag.save_cache(ARTIFACTS_DIR / "cag_cache" / f"{subset}.pt")
 
     rows: list[dict[str, Any]] = []
     predictions: list[str] = []
     references: list[str] = []
-    for record in tqdm(records, desc=f"CAG {split}", unit="question", dynamic_ncols=True):
+    for record in tqdm(
+        records,
+        desc=f"CAG {subset}",
+        unit="question",
+        dynamic_ncols=True,
+    ):
         if prompt_logs is not None:
             prompt_logs.append(
                 {
@@ -330,7 +335,7 @@ def run_cag(
         rows.append(
             {
                 "method": "cag",
-                "split": split,
+                "subset": subset,
                 "top_k": None,
                 "record_id": record["id"],
                 "question": record["question"],
@@ -360,4 +365,4 @@ def run_cag(
     for row, score in zip(rows, scores, strict=True):
         row["bertscore_f1"] = score
 
-    return normalize_rows(rows), save_results("cag", split, rows)
+    return normalize_rows(rows), save_results("cag", subset, rows)

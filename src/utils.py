@@ -38,9 +38,9 @@ class Config:
         os.getenv("RAG_VS_CAG_EMBEDDING_MAX_TOKENS", "2048")
     )
     kaggle_dataset: str = "abdellahhamouda/acqad-dataset"
-    hf_split_dataset: str = os.getenv(
-        "RAG_VS_CAG_HF_SPLIT_DATASET",
-        "abdullah-alamodi/acqad-rag-cag-splits",
+    hf_subset_dataset: str = os.getenv(
+        "RAG_VS_CAG_HF_SUBSET_DATASET",
+        "abdullah-alamodi/acqad-rag-cag-subsets",
     )
     seed: int = 42
     budgets: dict[str, int] = field(
@@ -72,11 +72,11 @@ def acqad_path() -> Path:
     return DATASET_DIR / "acqad_multihop.json"
 
 
-def split_path(split: str) -> Path:
-    return DATASET_DIR / f"acqad_multihop_{split}.json"
+def subset_path(subset: str) -> Path:
+    return DATASET_DIR / f"acqad_multihop_{subset}.json"
 
 
-def split_filenames() -> list[str]:
+def subset_filenames() -> list[str]:
     return [
         "acqad_multihop_small.json",
         "acqad_multihop_medium.json",
@@ -101,16 +101,16 @@ def download_acqad_multihop(config: Config = CONFIG) -> Path:
     return target
 
 
-def download_acqad_splits(config: Config = CONFIG) -> list[Path]:
+def download_acqad_subsets(config: Config = CONFIG) -> list[Path]:
     configure_local_caches()
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
 
     from huggingface_hub import hf_hub_download
 
     paths: list[Path] = []
-    for filename in split_filenames():
+    for filename in subset_filenames():
         path = hf_hub_download(
-            repo_id=config.hf_split_dataset,
+            repo_id=config.hf_subset_dataset,
             repo_type="dataset",
             filename=filename,
             local_dir=DATASET_DIR,
@@ -166,7 +166,7 @@ def unique_passages(records: list[dict[str, Any]]) -> list[str]:
     return passages
 
 
-def build_splits(config: Config = CONFIG) -> dict[str, dict[str, Any]]:
+def build_subsets(config: Config = CONFIG) -> dict[str, dict[str, Any]]:
     configure_local_caches()
     from transformers import AutoTokenizer
 
@@ -183,12 +183,12 @@ def build_splits(config: Config = CONFIG) -> dict[str, dict[str, Any]]:
         "tokenizer_used": config.tokenizer_id,
         "random_seed": config.seed,
         "creation_time": dt.datetime.now(dt.UTC).isoformat(),
-        "split_file_style": "single dataset directory with descriptive JSON filenames",
-        "splits": {},
+        "subset_file_style": "single dataset directory with descriptive JSON filenames",
+        "subsets": {},
     }
     subsets: dict[str, dict[str, Any]] = {}
 
-    for split, budget in config.budgets.items():
+    for subset, budget in config.budgets.items():
         selected: list[dict[str, Any]] = []
         passages: list[str] = []
         seen: set[str] = set()
@@ -210,9 +210,9 @@ def build_splits(config: Config = CONFIG) -> dict[str, dict[str, Any]]:
             seen.update(new_passages)
             total_tokens += extra_tokens
 
-        write_json(split_path(split), selected)
+        write_json(subset_path(subset), selected)
         context_occurrences_count = sum(len(record["context"]) for record in selected)
-        subsets[split] = {
+        subsets[subset] = {
             "records": selected,
             "passages": passages,
             "token_count": total_tokens,
@@ -220,21 +220,21 @@ def build_splits(config: Config = CONFIG) -> dict[str, dict[str, Any]]:
             "context_occurrences_count": context_occurrences_count,
             "unique_budget_passages_count": len(passages),
         }
-        metadata["splits"][split] = {
+        metadata["subsets"][subset] = {
             "budget": budget,
             "total_tokens_used": total_tokens,
             "questions_count": len(selected),
             "context_occurrences_count": context_occurrences_count,
             "unique_budget_passages_count": len(passages),
-            "file_path": str(split_path(split)),
+            "file_path": str(subset_path(subset)),
         }
 
     write_json(DATASET_DIR / "acqad_multihop_metadata.json", metadata)
     return subsets
 
 
-def load_split(split: str) -> list[dict[str, Any]]:
-    return load_records(split_path(split))
+def load_subset(subset: str) -> list[dict[str, Any]]:
+    return load_records(subset_path(subset))
 
 
 def select_device(preference: str = "auto") -> tuple[str, torch.device]:
@@ -456,17 +456,17 @@ def _mean(rows: list[dict[str, Any]], key: str) -> float:
     return statistics.fmean(float(row[key]) for row in rows)
 
 
-def _result_stem(method: str, split: str, top_k: int | None) -> str:
+def _result_stem(method: str, subset: str, top_k: int | None) -> str:
     if method == "rag":
         if top_k is None:
             raise ValueError("RAG results require a retrieval depth.")
-        return f"rag_{split}_k{top_k}"
-    return f"cag_{split}"
+        return f"rag_{subset}_k{top_k}"
+    return f"cag_{subset}"
 
 
 def save_results(
     method: str,
-    split: str,
+    subset: str,
     rows: list[dict[str, Any]],
     top_k: int | None = None,
 ) -> dict[str, Any]:
@@ -475,11 +475,11 @@ def save_results(
 
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     rows = normalize_rows(rows)
-    stem = _result_stem(method, split, top_k)
+    stem = _result_stem(method, subset, top_k)
     created_at = dt.datetime.now(dt.UTC).isoformat()
     result_payload = {
         "method": method,
-        "split": split,
+        "subset": subset,
         "top_k": top_k,
         "created_at": created_at,
         "questions": len(rows),
@@ -495,7 +495,7 @@ def save_results(
     )
     summary = {
         "method": method,
-        "split": split,
+        "subset": subset,
         "top_k": top_k,
         "created_at": created_at,
         "questions": len(rows),
@@ -525,14 +525,19 @@ def refresh_experiment_overview() -> dict[str, Any]:
     summary_files = sorted(RESULT_DIR.glob("rag_*_summary.json"))
     summary_files.extend(sorted(RESULT_DIR.glob("cag_*_summary.json")))
     summaries = [load_json(path) for path in summary_files]
+    summaries = [summary for summary in summaries if "subset" in summary]
     depth_comparisons: list[dict[str, Any]] = []
     best_rag_comparisons: list[dict[str, Any]] = []
-    for split in CONFIG.budgets:
+    for subset in CONFIG.budgets:
         cag_rows = [
-            row for row in summaries if row["split"] == split and row["method"] == "cag"
+            row
+            for row in summaries
+            if row["subset"] == subset and row["method"] == "cag"
         ]
         rag_rows = [
-            row for row in summaries if row["split"] == split and row["method"] == "rag"
+            row
+            for row in summaries
+            if row["subset"] == subset and row["method"] == "rag"
         ]
         if not cag_rows:
             continue
@@ -551,7 +556,7 @@ def refresh_experiment_overview() -> dict[str, Any]:
                 outcome = "trade_off"
             depth_comparisons.append(
                 {
-                    "split": split,
+                    "subset": subset,
                     "rag_top_k": rag_row["top_k"],
                     "cag_minus_rag_bertscore_f1": quality_delta,
                     "cag_minus_rag_latency_seconds": latency_delta,
@@ -598,7 +603,7 @@ def refresh_experiment_overview() -> dict[str, Any]:
             overall_outcome = "trade_off"
         best_rag_comparisons.append(
             {
-                "split": split,
+                "subset": subset,
                 "rag_selection_rule": "highest_mean_bertscore_then_lowest_latency",
                 "selected_rag_top_k": best_rag["top_k"],
                 "cag_mean_bertscore_f1": cag_row["mean_bertscore_f1"],

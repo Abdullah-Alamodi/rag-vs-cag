@@ -17,7 +17,7 @@ from utils import (
     configure_local_caches,
     generate_answer,
     load_generator,
-    load_split,
+    load_subset,
     normalize_rows,
     render_generation_prompt,
     save_results,
@@ -72,13 +72,13 @@ class LlamaIndexRAG:
 
 
 def run_rag(
-    split: str,
+    subset: str,
     top_k: int,
     limit: int | None = None,
     config: Config = CONFIG,
     prompt_logs: list[dict[str, str]] | None = None,
 ):
-    all_records = load_split(split)
+    all_records = load_subset(subset)
     records = all_records
     if limit is not None:
         records = records[:limit]
@@ -99,7 +99,7 @@ def run_rag(
 
     for record in tqdm(
         records,
-        desc=f"RAG {split} k={top_k}",
+        desc=f"RAG {subset} k={top_k}",
         unit="question",
         dynamic_ncols=True,
     ):
@@ -136,7 +136,7 @@ def run_rag(
         rows.append(
             {
                 "method": "rag",
-                "split": split,
+                "subset": subset,
                 "top_k": top_k,
                 "record_id": record["id"],
                 "question": record["question"],
@@ -164,4 +164,4 @@ def run_rag(
     for row, score in zip(rows, scores, strict=True):
         row["bertscore_f1"] = score
 
-    return normalize_rows(rows), save_results("rag", split, rows, top_k=top_k)
+    return normalize_rows(rows), save_results("rag", subset, rows, top_k=top_k)

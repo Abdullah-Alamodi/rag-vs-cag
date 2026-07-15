@@ -1,0 +1,19 @@
+{
+  "method": "rag",
+  "subset": "small",
+  "top_k": 4,
+  "created_at": "2026-07-14T15:57:32.096615+00:00",
+  "questions": 8,
+  "mean_bertscore_f1": 0.8004458695650101,
+  "mean_retrieval_seconds": 0.019865380600094795,
+  "mean_generation_seconds": 0.34474979154765606,
+  "mean_online_latency_seconds": 0.37355721555650234,
+  "median_online_latency_seconds": 0.36401577293872833,
+  "min_online_latency_seconds": 0.2655743286013603,
+  "max_online_latency_seconds": 0.6206236556172371,
+  "total_online_latency_seconds": 2.9884577244520187,
+  "mean_generated_tokens": 7.0,
+  "total_generated_tokens": 56,
+  "mean_tokens_per_second": 19.19500642958178,
+  "prepare_seconds": 0.3714856803417206
+}

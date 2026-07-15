@@ -15,9 +15,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the ACQAD RAG vs CAG comparison.")
     parser.add_argument(
         "command",
-        choices=["download", "download-splits", "splits", "rag", "cag", "compare"],
+        choices=["download", "download-subsets", "subsets", "rag", "cag", "compare"],
     )
-    parser.add_argument("--split", default="small", choices=["small", "medium", "large"])
+    parser.add_argument(
+        "--subset",
+        default="small",
+        choices=["small", "medium", "large"],
+    )
     parser.add_argument("--top-k", type=int, default=2)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--model-id", default=None)
@@ -57,15 +61,15 @@ def main() -> None:
         from utils import download_acqad_multihop
 
         print(download_acqad_multihop(build_config()))
-    elif args.command == "download-splits":
-        from utils import download_acqad_splits
+    elif args.command == "download-subsets":
+        from utils import download_acqad_subsets
 
-        for path in download_acqad_splits(build_config()):
+        for path in download_acqad_subsets(build_config()):
             print(path)
-    elif args.command == "splits":
-        from utils import build_splits
+    elif args.command == "subsets":
+        from utils import build_subsets
 
-        subsets = build_splits(build_config())
+        subsets = build_subsets(build_config())
         for name, info in subsets.items():
             print(
                 name,
@@ -80,7 +84,7 @@ def main() -> None:
 
         prompt_logs = [] if args.print_prompt else None
         _, summary = run_rag(
-            args.split,
+            args.subset,
             args.top_k,
             args.limit,
             build_config(),
@@ -94,7 +98,7 @@ def main() -> None:
 
         prompt_logs = [] if args.print_prompt else None
         _, summary = run_cag(
-            args.split,
+            args.subset,
             args.limit,
             build_config(),
             prompt_logs=prompt_logs,
@@ -109,31 +113,31 @@ def main() -> None:
         config = build_config()
         total_runs = len(config.budgets) * (1 + len(config.rag_top_k))
         current_run = 0
-        for split in config.budgets:
+        for subset in config.budgets:
             current_run += 1
             print(
-                f"\n[{current_run}/{total_runs}] Starting CAG split={split}",
+                f"\n[{current_run}/{total_runs}] Starting CAG subset={subset}",
                 flush=True,
             )
-            _, cag_summary = run_cag(split, args.limit, config)
+            _, cag_summary = run_cag(subset, args.limit, config)
             print(json.dumps(cag_summary, ensure_ascii=False, indent=2))
             print(
-                f"[{current_run}/{total_runs}] Saved result/cag_{split}_result.json "
-                f"and result/cag_{split}_summary.json",
+                f"[{current_run}/{total_runs}] Saved result/cag_{subset}_result.json "
+                f"and result/cag_{subset}_summary.json",
                 flush=True,
             )
             for top_k in config.rag_top_k:
                 current_run += 1
                 print(
-                    f"\n[{current_run}/{total_runs}] Starting RAG split={split} k={top_k}",
+                    f"\n[{current_run}/{total_runs}] Starting RAG subset={subset} k={top_k}",
                     flush=True,
                 )
-                _, rag_summary = run_rag(split, top_k, args.limit, config)
+                _, rag_summary = run_rag(subset, top_k, args.limit, config)
                 print(json.dumps(rag_summary, ensure_ascii=False, indent=2))
                 print(
                     f"[{current_run}/{total_runs}] Saved "
-                    f"result/rag_{split}_k{top_k}_result.json and "
-                    f"result/rag_{split}_k{top_k}_summary.json",
+                    f"result/rag_{subset}_k{top_k}_result.json and "
+                    f"result/rag_{subset}_k{top_k}_summary.json",
                     flush=True,
                 )
         overview = summarize_research_questions()

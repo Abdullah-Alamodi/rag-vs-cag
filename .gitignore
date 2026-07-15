@@ -10,12 +10,10 @@ artifacts/
 cache/
 dataset/*
 !dataset/.gitkeep
-result/*
 !result/.gitkeep
 *.pt
 *.safetensors
 
 # project files
 dataset/*.json
-result/*
 artifacts/*
