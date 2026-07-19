@@ -184,6 +184,7 @@ def build_subsets(config: Config = CONFIG) -> dict[str, dict[str, Any]]:
         "random_seed": config.seed,
         "creation_time": dt.datetime.now(dt.UTC).isoformat(),
         "subset_file_style": "single dataset directory with descriptive JSON filenames",
+        "subset_file_format": "pool_records_and_pool_evaluation",
         "subsets": {},
     }
     subsets: dict[str, dict[str, Any]] = {}
@@ -210,20 +211,55 @@ def build_subsets(config: Config = CONFIG) -> dict[str, dict[str, Any]]:
             seen.update(new_passages)
             total_tokens += extra_tokens
 
-        write_json(subset_path(subset), selected)
-        context_occurrences_count = sum(len(record["context"]) for record in selected)
+        pool_passage_set = set(passages)
+        selected_ids = {record["id"] for record in selected}
+        coverage_records = [
+            record
+            for record in shuffled
+            if record["id"] not in selected_ids
+            and set(record["context"]).issubset(pool_passage_set)
+        ]
+        evaluation_records = selected + coverage_records
+        pool_evaluation = [
+            {
+                "id": record["id"],
+                "question": record["question"],
+                "answer": record["answer"],
+            }
+            for record in evaluation_records
+        ]
+        if any(
+            not set(record["context"]).issubset(pool_passage_set)
+            for record in evaluation_records
+        ):
+            raise AssertionError("Every evaluation question must use the pool passages.")
+
+        write_json(
+            subset_path(subset),
+            {
+                "pool_records": selected,
+                "pool_evaluation": pool_evaluation,
+            },
+        )
+        context_occurrences_count = sum(
+            len(record["context"]) for record in evaluation_records
+        )
         subsets[subset] = {
-            "records": selected,
+            "pool_records": selected,
+            "pool_evaluation": pool_evaluation,
             "passages": passages,
             "token_count": total_tokens,
             "budget": budget,
+            "records_count": len(selected),
+            "questions_count": len(pool_evaluation),
             "context_occurrences_count": context_occurrences_count,
             "unique_budget_passages_count": len(passages),
         }
         metadata["subsets"][subset] = {
             "budget": budget,
             "total_tokens_used": total_tokens,
-            "questions_count": len(selected),
+            "records_count": len(selected),
+            "questions_count": len(pool_evaluation),
             "context_occurrences_count": context_occurrences_count,
             "unique_budget_passages_count": len(passages),
             "file_path": str(subset_path(subset)),
@@ -233,8 +269,40 @@ def build_subsets(config: Config = CONFIG) -> dict[str, dict[str, Any]]:
     return subsets
 
 
-def load_subset(subset: str) -> list[dict[str, Any]]:
-    return load_records(subset_path(subset))
+def load_subset(subset: str) -> dict[str, list[dict[str, Any]]]:
+    data = load_json(subset_path(subset))
+    if isinstance(data, list):
+        # Read legacy flat subset files while regenerated structured files roll out.
+        records = [normalize_record(item, i) for i, item in enumerate(data)]
+        return {
+            "pool_records": records,
+            "pool_evaluation": [
+                {
+                    "id": record["id"],
+                    "question": record["question"],
+                    "answer": record["answer"],
+                }
+                for record in records
+            ],
+        }
+    if not isinstance(data, dict):
+        raise ValueError(f"Subset file must contain an object: {subset_path(subset)}")
+    if "pool_records" not in data or "pool_evaluation" not in data:
+        raise ValueError(
+            f"Subset file must contain pool_records and pool_evaluation: {subset_path(subset)}"
+        )
+    pool_records = [
+        normalize_record(item, i) for i, item in enumerate(data["pool_records"])
+    ]
+    pool_evaluation = [
+        {
+            "id": str(item["id"]),
+            "question": str(item["question"]).strip(),
+            "answer": str(item.get("answer", item.get("gold_answer", ""))).strip(),
+        }
+        for item in data["pool_evaluation"]
+    ]
+    return {"pool_records": pool_records, "pool_evaluation": pool_evaluation}
 
 
 def select_device(preference: str = "auto") -> tuple[str, torch.device]:
@@ -452,8 +520,13 @@ def normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows
 
 
-def _mean(rows: list[dict[str, Any]], key: str) -> float:
-    return statistics.fmean(float(row[key]) for row in rows)
+def _distribution_summary(rows: list[dict[str, Any]], key: str) -> dict[str, float]:
+    values = [float(row[key]) for row in rows]
+    return {
+        f"mean_{key}": statistics.fmean(values),
+        f"median_{key}": statistics.median(values),
+        f"std_{key}": statistics.stdev(values) if len(values) > 1 else 0.0,
+    }
 
 
 def _result_stem(method: str, subset: str, top_k: int | None) -> str:
@@ -488,28 +561,23 @@ def save_results(
     write_json(RESULT_DIR / f"{stem}_result.json", result_payload)
 
     online_values = [float(row["online_latency_seconds"]) for row in rows]
-    timing_summary = (
-        {"mean_retrieval_seconds": _mean(rows, "retrieval_seconds")}
-        if method == "rag"
-        else {"mean_cache_reset_seconds": _mean(rows, "cache_reset_seconds")}
-    )
+    timing_key = "retrieval_seconds" if method == "rag" else "cache_reset_seconds"
     summary = {
         "method": method,
         "subset": subset,
         "top_k": top_k,
         "created_at": created_at,
         "questions": len(rows),
-        "mean_bertscore_f1": _mean(rows, "bertscore_f1"),
-        **timing_summary,
-        "mean_generation_seconds": _mean(rows, "generation_seconds"),
-        "mean_online_latency_seconds": statistics.fmean(online_values),
-        "median_online_latency_seconds": statistics.median(online_values),
+        **_distribution_summary(rows, "bertscore_f1"),
+        **_distribution_summary(rows, timing_key),
+        **_distribution_summary(rows, "generation_seconds"),
+        **_distribution_summary(rows, "online_latency_seconds"),
+        **_distribution_summary(rows, "generated_tokens"),
+        **_distribution_summary(rows, "tokens_per_second"),
         "min_online_latency_seconds": min(online_values),
         "max_online_latency_seconds": max(online_values),
         "total_online_latency_seconds": sum(online_values),
-        "mean_generated_tokens": _mean(rows, "generated_tokens"),
         "total_generated_tokens": sum(int(row["generated_tokens"]) for row in rows),
-        "mean_tokens_per_second": _mean(rows, "tokens_per_second"),
         "prepare_seconds": max(float(row["prepare_seconds"]) for row in rows),
     }
     if method == "cag":

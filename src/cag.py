@@ -294,9 +294,11 @@ def run_cag(
     save_cache: bool = True,
     prompt_logs: list[dict[str, str]] | None = None,
 ):
-    all_records = load_subset(subset)
-    records = all_records if limit is None else all_records[:limit]
-    passages = unique_passages(all_records)
+    subset_data = load_subset(subset)
+    pool_records = subset_data["pool_records"]
+    all_questions = subset_data["pool_evaluation"]
+    records = all_questions if limit is None else all_questions[:limit]
+    passages = unique_passages(pool_records)
 
     cag = CacheAugmentedGenerator(config)
     cag.prepare_cache(passages)

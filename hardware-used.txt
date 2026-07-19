@@ -1,11 +1,12 @@
 ======================================
           SYSTEM INFORMATION
 ======================================
-CPU Cores:        128
-CPU Type:         AMD EPYC 7543 32-Core Processor
-RAM Size:         1.0Ti
+CPU Cores:        252
+CPU Type:         AMD EPYC 7763 64-Core Processor
+RAM Size:         944Gi
 GPU Type:         NVIDIA A100 80GB PCIe
 GPU RAM Memory:   81920 MiB
 Python Version:   3.12.3
-CUDA Version:     12.8 (Runtime)
+CUDA Version:     13.0 (Runtime)
+OS:               Ubuntu 24.04.4 LTS
 ======================================

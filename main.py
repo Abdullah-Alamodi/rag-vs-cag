@@ -74,7 +74,8 @@ def main() -> None:
             print(
                 name,
                 f"tokens={info['token_count']}",
-                f"records={len(info['records'])}",
+                f"records={info['records_count']}",
+                f"questions={info['questions_count']}",
                 f"saved_contexts={info['context_occurrences_count']}",
                 f"unique_budget_contexts={info['unique_budget_passages_count']}",
             )

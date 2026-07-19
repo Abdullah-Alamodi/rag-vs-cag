@@ -51,8 +51,14 @@ The subset builder follows the methodology scenario directly:
 4. Visit each shuffled record as an atomic unit.
 5. Use a temporary set to count only unseen passages toward the token budget.
 6. If adding the current record's unseen passages would exceed the subset token budget, stop and exclude that current record.
+7. Add every remaining record whose complete context is already covered by the budget-selected passage pool.
 
-The saved subset keeps each included record's full original `context` list. No context passages are removed from the saved subset JSON. The temporary set is only for budget accounting and for reporting the unique passage count.
+Each saved subset is an object with two sections:
+
+- `pool_records`: the budget-selected records, each retaining its full original `context` list. These records establish the unique passage pool used by both RAG and CAG.
+- `pool_evaluation`: all questions with gold answers, including questions added through pool coverage. These items contain only `id`, `question`, and `answer`.
+
+The metadata stores `records_count` for `pool_records` and `questions_count` for `pool_evaluation`. `context_occurrences_count` counts the original context occurrences across all evaluation questions, while `unique_budget_passages_count` counts the deduplicated pool passages.
 
 ## Setup
 

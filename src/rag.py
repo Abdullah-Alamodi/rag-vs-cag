@@ -78,11 +78,12 @@ def run_rag(
     config: Config = CONFIG,
     prompt_logs: list[dict[str, str]] | None = None,
 ):
-    all_records = load_subset(subset)
-    records = all_records
+    subset_data = load_subset(subset)
+    pool_records = subset_data["pool_records"]
+    records = subset_data["pool_evaluation"]
     if limit is not None:
         records = records[:limit]
-    passages = unique_passages(all_records)
+    passages = unique_passages(pool_records)
     device_kind, _ = select_device(config.device_preference)
 
     retriever = LlamaIndexRAG(
